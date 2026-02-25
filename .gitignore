@@ -1,0 +1,12 @@
+/_build/
+/cover/
+/deps/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+phoenix_iconify-*.tar
+/tmp/
+.elixir_ls/
+/priv/iconify/manifest.etf
+/priv/iconify/sets/
