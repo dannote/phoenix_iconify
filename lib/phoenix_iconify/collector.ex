@@ -62,7 +62,9 @@ defmodule PhoenixIconify.Collector do
 
   defp extract_name_from_props(_), do: []
 
-  defp extract_string_value({:string, value, _meta}) when is_binary(value), do: [normalize_name(value)]
+  defp extract_string_value({:string, value, _meta}) when is_binary(value),
+    do: [normalize_name(value)]
+
   defp extract_string_value(value) when is_binary(value), do: [normalize_name(value)]
   defp extract_string_value(_), do: []
 

@@ -96,9 +96,9 @@ defmodule PhoenixIconify do
       <.icon name="hero-user-solid" />
 
   """
-  attr :name, :string, required: true, doc: "Icon name (e.g., \"heroicons:user\")"
-  attr :class, :string, default: nil, doc: "CSS classes"
-  attr :rest, :global, doc: "Additional SVG attributes"
+  attr(:name, :string, required: true, doc: "Icon name (e.g., \"heroicons:user\")")
+  attr(:class, :string, default: nil, doc: "CSS classes")
+  attr(:rest, :global, doc: "Additional SVG attributes")
 
   def icon(assigns) do
     icon_data = get_icon(assigns.name)
@@ -184,7 +184,10 @@ defmodule PhoenixIconify do
   # Private functions
 
   defp handle_missing_icon(normalized, original) do
-    maybe_warn("Icon not found: #{normalized}" <> if(normalized != original, do: " (from #{original})", else: ""))
+    maybe_warn(
+      "Icon not found: #{normalized}" <>
+        if(normalized != original, do: " (from #{original})", else: "")
+    )
 
     if runtime_fetch_enabled?() do
       fetch_icon_at_runtime(normalized)
