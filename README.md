@@ -50,10 +50,13 @@ end
 Use icons in your templates:
 
 ```heex
-<.icon name="heroicons:user" />
-<.icon name="heroicons:user" class="w-6 h-6 text-blue-500" />
-<.icon name="lucide:home" id="home-icon" />
+<.icon name="lucide:settings" class="size-5" />
+<.icon name="hero-user" class="size-6 text-zinc-500" />
+<.icon name="mdi:account" label="Account" />
+<.icon name="lucide:x" phx-click="close" />
 ```
+
+The component renders inline SVG and forwards global attributes, including `phx-*`, `data-*`, and `aria-*` attributes.
 
 ## How It Works
 
@@ -63,6 +66,38 @@ Use icons in your templates:
 4. Missing icons are fetched from the Iconify API
 5. Icons are cached in `priv/iconify/manifest.etf`
 6. At runtime, icons are loaded from the manifest
+
+## Component API
+
+Decorative icons are hidden from assistive technology by default:
+
+```heex
+<.icon name="lucide:settings" class="size-5" />
+```
+
+Use `label` or `title` for meaningful icons:
+
+```heex
+<.icon name="lucide:settings" label="Settings" />
+<.icon name="lucide:settings" title="Settings" />
+```
+
+Set dimensions with Tailwind classes, `size`, or explicit `width`/`height`:
+
+```heex
+<.icon name="lucide:settings" class="size-5" />
+<.icon name="lucide:settings" size="20" />
+<.icon name="lucide:settings" width="1em" height="1em" />
+```
+
+Iconify transformations are supported for aliases and at render time:
+
+```heex
+<.icon name="lucide:arrow-right" rotate={1} />
+<.icon name="lucide:arrow-right" flip="horizontal" />
+<.icon name="lucide:arrow-right" h_flip />
+<.icon name="lucide:arrow-right" v_flip />
+```
 
 ## Icon Names
 
@@ -128,7 +163,20 @@ mix phoenix_iconify           # Show help
 mix phoenix_iconify.stats     # Show statistics
 mix phoenix_iconify.list      # List icons in manifest
 mix phoenix_iconify.cache     # Cache management
+mix phoenix_iconify.prefetch  # Scan and fetch discovered icons
+mix phoenix_iconify.audit     # Report missing discovered icons
+mix phoenix_iconify.clean     # Remove unused manifest icons
 ```
+
+## Volt Projects
+
+For projects created with Volt, use `phoenix_iconify` when you want server-rendered, compile-time embedded SVGs:
+
+```heex
+<.icon name="lucide:settings" class="size-5" />
+```
+
+This does not use Volt's JavaScript pipeline. If you want client-side Iconify components instead, use the official npm packages (`iconify-icon`, `@iconify/react`, `@iconify/vue`, etc.) through Volt's normal package handling.
 
 ## License
 

@@ -68,6 +68,6 @@ defmodule PhoenixIconify.Collector do
   defp extract_string_value(value) when is_binary(value), do: [normalize_name(value)]
   defp extract_string_value(_), do: []
 
-  defp normalize_name("hero-" <> rest), do: "heroicons:#{rest}"
+  defp normalize_name("hero-" <> _rest = name), do: PhoenixIconify.normalize_name(name)
   defp normalize_name(name), do: name
 end

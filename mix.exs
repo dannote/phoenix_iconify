@@ -11,6 +11,7 @@ defmodule PhoenixIconify.MixProject do
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      aliases: aliases(),
       package: package(),
       docs: docs(),
       name: "PhoenixIconify",
@@ -29,7 +30,10 @@ defmodule PhoenixIconify.MixProject do
       {:iconify, iconify_dep()},
       {:phoenix_live_view, "~> 0.20 or ~> 1.0"},
       {:req, "~> 0.5"},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:reach, "~> 2.0", only: [:dev, :test], runtime: false},
+      {:ex_dna, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.35", only: :dev, runtime: false}
     ]
   end
 
@@ -38,8 +42,32 @@ defmodule PhoenixIconify.MixProject do
     if path = System.get_env("ICONIFY_PATH") do
       [path: path]
     else
-      "~> 0.1.0"
+      "~> 0.2.0"
     end
+  end
+
+  def cli do
+    [preferred_envs: [ci: :test]]
+  end
+
+  defp aliases do
+    [
+      ci: [
+        "compile --warnings-as-errors",
+        "format --check-formatted",
+        "credo --strict",
+        "reach.check --smells --strict",
+        "test",
+        "ex_dna"
+      ],
+      lint: [
+        "format --check-formatted",
+        "compile --warnings-as-errors",
+        "credo --strict",
+        "reach.check --smells --strict",
+        "ex_dna"
+      ]
+    ]
   end
 
   defp package do

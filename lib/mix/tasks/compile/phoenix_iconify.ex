@@ -23,25 +23,15 @@ defmodule Mix.Tasks.Compile.PhoenixIconify do
 
   use Mix.Task.Compiler
 
-  alias PhoenixIconify.{Cache, Manifest, Scanner}
+  alias PhoenixIconify.{Cache, Discovery, Manifest}
 
   @recursive true
 
   @impl true
   def run(_args) do
-    # Ensure Finch is started for HTTP requests
     {:ok, _} = Application.ensure_all_started(:req)
 
-    # Scan source files for icon usage
-    scanned_icons = Scanner.scan()
-
-    # Add extra icons from config (for dynamic usage)
-    extra_icons =
-      Application.get_env(:phoenix_iconify, :extra_icons, [])
-      |> Enum.map(&PhoenixIconify.normalize_name/1)
-      |> Enum.reject(&is_nil/1)
-
-    icons = Enum.uniq(scanned_icons ++ extra_icons) |> Enum.sort()
+    icons = Discovery.icons()
 
     if icons == [] do
       {:ok, []}
@@ -51,16 +41,8 @@ defmodule Mix.Tasks.Compile.PhoenixIconify do
   end
 
   defp process_icons(icon_names) do
-    # Validate icon names
-    {valid, invalid} =
-      Enum.split_with(icon_names, fn name ->
-        case Iconify.parse_name(name) do
-          {:ok, _, _} -> true
-          :error -> false
-        end
-      end)
+    {valid, invalid} = Discovery.split_valid(icon_names)
 
-    # Warn about invalid icon names
     for name <- invalid do
       Mix.shell().error(
         "PhoenixIconify: Invalid icon name format: #{inspect(name)}. " <>
@@ -68,45 +50,35 @@ defmodule Mix.Tasks.Compile.PhoenixIconify do
       )
     end
 
-    # Read existing manifest
     manifest = Manifest.read()
+    missing = Enum.reject(valid, &Map.has_key?(manifest, &1))
 
-    # Find icons we don't have yet
-    missing =
-      valid
-      |> Enum.reject(&Map.has_key?(manifest, &1))
+    fetch_missing_icons(manifest, missing)
+  end
 
-    if missing == [] do
-      # All icons already cached
-      {:ok, []}
-    else
-      # Fetch missing icons
-      Mix.shell().info("PhoenixIconify: Fetching #{length(missing)} icon(s)...")
+  defp fetch_missing_icons(_manifest, []), do: {:ok, []}
 
-      fetched = fetch_icons(missing)
+  defp fetch_missing_icons(manifest, missing) do
+    total = length(missing)
+    Mix.shell().info("PhoenixIconify: Fetching #{total} icon(s)...")
 
-      # Update manifest
-      updated = Map.merge(manifest, fetched)
-      Manifest.write(updated)
+    fetched = fetch_icons(missing)
+    Manifest.write(Map.merge(manifest, fetched))
+    Manifest.clear_cache()
+    report_fetch_result(total, map_size(fetched))
 
-      # Clear the persistent_term cache so it reloads
-      Manifest.clear_cache()
+    {:ok, []}
+  end
 
-      fetched_count = map_size(fetched)
-      failed_count = length(missing) - fetched_count
+  defp report_fetch_result(total, fetched) when total == fetched do
+    Mix.shell().info("PhoenixIconify: Fetched #{fetched} icon(s)")
+  end
 
-      if failed_count > 0 do
-        Mix.shell().info("PhoenixIconify: Fetched #{fetched_count}, failed #{failed_count}")
-      else
-        Mix.shell().info("PhoenixIconify: Fetched #{fetched_count} icon(s)")
-      end
-
-      {:ok, []}
-    end
+  defp report_fetch_result(total, fetched) do
+    Mix.shell().info("PhoenixIconify: Fetched #{fetched}, failed #{total - fetched}")
   end
 
   defp fetch_icons(icon_names) do
-    # Group by prefix for efficient fetching
     results =
       icon_names
       |> Enum.group_by(fn name ->
@@ -120,7 +92,6 @@ defmodule Mix.Tasks.Compile.PhoenixIconify do
         fetch_prefix_icons(prefix, names)
       end)
 
-    # Warn about icons that couldn't be fetched
     fetched_names = Enum.map(results, fn {name, _} -> name end)
     not_found = icon_names -- fetched_names
 
@@ -132,34 +103,30 @@ defmodule Mix.Tasks.Compile.PhoenixIconify do
   end
 
   defp fetch_prefix_icons(prefix, full_names) do
-    # Extract just the icon names (without prefix)
-    icon_names =
-      full_names
-      |> Enum.map(fn name ->
-        {:ok, _prefix, icon_name} = Iconify.parse_name(name)
-        icon_name
-      end)
+    icon_names = Enum.map(full_names, &icon_name!/1)
 
-    # Try to get icons from cache first
     case Cache.fetch_set(prefix) do
-      {:ok, set} ->
-        # Get icons from cached set
-        Enum.flat_map(icon_names, fn icon_name ->
-          case Iconify.Set.get(set, icon_name) do
-            {:ok, icon} ->
-              full_name = "#{prefix}:#{icon_name}"
-              data = %{body: icon.body, viewbox: Iconify.Icon.viewbox(icon)}
-              [{full_name, data}]
-
-            :error ->
-              []
-          end
-        end)
-
-      {:error, _} ->
-        # Fall back to API for individual icons
-        fetch_icons_from_api(prefix, icon_names)
+      {:ok, set} -> fetch_icons_from_set(prefix, icon_names, set)
+      {:error, _} -> fetch_icons_from_api(prefix, icon_names)
     end
+  end
+
+  defp icon_name!(name) do
+    {:ok, _prefix, icon_name} = Iconify.parse_name(name)
+    icon_name
+  end
+
+  defp fetch_icons_from_set(prefix, icon_names, set) do
+    Enum.flat_map(icon_names, fn icon_name ->
+      case Iconify.Set.get(set, icon_name) do
+        {:ok, icon} ->
+          full_name = "#{prefix}:#{icon_name}"
+          [{full_name, %{icon | name: full_name}}]
+
+        :error ->
+          []
+      end
+    end)
   end
 
   defp fetch_icons_from_api(prefix, icon_names) do
@@ -167,8 +134,7 @@ defmodule Mix.Tasks.Compile.PhoenixIconify do
       {:ok, icons} ->
         Enum.map(icons, fn {name, icon} ->
           full_name = "#{prefix}:#{name}"
-          data = %{body: icon.body, viewbox: Iconify.Icon.viewbox(icon)}
-          {full_name, data}
+          {full_name, %{icon | name: full_name}}
         end)
 
       {:error, reason} ->

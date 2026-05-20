@@ -5,7 +5,8 @@ defmodule PhoenixIconify.Manifest do
   The manifest contains all discovered icons, cached between compilations.
   """
 
-  @manifest_filename "manifest.etf"
+  @manifest_filename "manifest.json"
+  @version 1
 
   @doc """
   Returns the path to the manifest file for the given application.
@@ -28,36 +29,34 @@ defmodule PhoenixIconify.Manifest do
 
   @doc """
   Reads the manifest from disk.
+
+  Missing manifests are treated as empty. Invalid manifests raise.
   """
+  @spec read(Path.t() | nil) :: %{String.t() => Iconify.Icon.t()}
   def read(path \\ nil) do
     path = path || manifest_path()
 
-    if File.exists?(path) do
-      path
-      |> File.read!()
-      |> :erlang.binary_to_term()
-    else
-      %{}
+    case File.read(path) do
+      {:ok, json} -> decode!(json)
+      {:error, :enoent} -> %{}
+      {:error, reason} -> raise File.Error, reason: reason, action: "read file", path: path
     end
   end
 
   @doc """
   Writes the manifest to disk.
   """
+  @spec write(%{String.t() => Iconify.Icon.t()}, Path.t() | nil) :: :ok
   def write(icons, path \\ nil) when is_map(icons) do
     path = path || manifest_path()
+    File.mkdir_p!(Path.dirname(path))
 
-    dir = Path.dirname(path)
-    File.mkdir_p!(dir)
-
-    binary = :erlang.term_to_binary(icons)
-    File.write!(path, binary)
-
-    :ok
+    payload = %{version: @version, icons: icons |> Map.values() |> Enum.sort_by(& &1.name)}
+    File.write!(path, Jason.encode_to_iodata!(payload, pretty: true))
   end
 
   @doc """
-  Gets icons from the manifest, loading from the compiled module attribute if available.
+  Gets icons from the manifest, loading from persistent storage on first use.
   """
   def get_icons do
     case :persistent_term.get({__MODULE__, :icons}, nil) do
@@ -89,12 +88,9 @@ defmodule PhoenixIconify.Manifest do
 
   @doc """
   Adds an icon to the runtime cache and optionally persists to disk.
-
-  This is used for runtime-fetched icons in development.
   """
-  def add_icon(name, icon_data, opts \\ []) do
-    icons = get_icons()
-    updated = Map.put(icons, name, icon_data)
+  def add_icon(name, %Iconify.Icon{} = icon, opts \\ []) do
+    updated = Map.put(get_icons(), name, %{icon | name: name})
     :persistent_term.put({__MODULE__, :icons}, updated)
 
     if Keyword.get(opts, :persist, false) do
@@ -109,5 +105,20 @@ defmodule PhoenixIconify.Manifest do
   """
   def count do
     get_icons() |> map_size()
+  end
+
+  defp decode!(json) do
+    %{version: @version, icons: icons} = Jason.decode!(json, keys: :atoms!)
+
+    unless is_list(icons) do
+      raise ArgumentError, "invalid PhoenixIconify manifest: expected icons to be a list"
+    end
+
+    Map.new(icons, &icon_entry/1)
+  end
+
+  defp icon_entry(icon) do
+    icon = struct!(Iconify.Icon, icon)
+    {icon.name, icon}
   end
 end

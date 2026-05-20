@@ -9,6 +9,9 @@ defmodule Mix.Tasks.PhoenixIconify do
       mix phoenix_iconify.stats     # Show icon and cache statistics
       mix phoenix_iconify.list      # List all icons in manifest
       mix phoenix_iconify.cache     # Cache management
+      mix phoenix_iconify.prefetch  # Scan and fetch discovered icons
+      mix phoenix_iconify.audit     # Report missing discovered icons
+      mix phoenix_iconify.clean     # Remove unused manifest icons
 
   """
 
@@ -24,6 +27,9 @@ defmodule Mix.Tasks.PhoenixIconify do
       mix phoenix_iconify.stats     Show icon and cache statistics
       mix phoenix_iconify.list      List all icons in manifest
       mix phoenix_iconify.cache     Cache management (fetch, clear, list)
+      mix phoenix_iconify.prefetch  Scan and fetch discovered icons
+      mix phoenix_iconify.audit     Report missing discovered icons
+      mix phoenix_iconify.clean     Remove unused manifest icons
 
     For more info on a command:
 
@@ -52,13 +58,7 @@ defmodule Mix.Tasks.PhoenixIconify.Stats do
 
     prefixes =
       manifest
-      |> Map.keys()
-      |> Enum.map(fn name ->
-        case String.split(name, ":", parts: 2) do
-          [prefix, _] -> prefix
-          _ -> "unknown"
-        end
-      end)
+      |> Enum.map(fn {name, _icon} -> prefix_from_icon(name) || "unknown" end)
       |> Enum.frequencies()
       |> Enum.sort_by(fn {_, count} -> -count end)
 
@@ -80,8 +80,16 @@ defmodule Mix.Tasks.PhoenixIconify.Stats do
 
   defp format_prefixes(prefixes) do
     prefixes
-    |> Enum.map(fn {prefix, count} -> "    - #{prefix}: #{count}" end)
-    |> Enum.join("\n")
+    |> Enum.map(fn {prefix, count} -> ["    - ", prefix, ": ", Integer.to_string(count)] end)
+    |> Enum.intersperse("\n")
+    |> IO.iodata_to_binary()
+  end
+
+  defp prefix_from_icon(name) do
+    case String.split(name, ":", parts: 2) do
+      [prefix, _] -> prefix
+      _ -> nil
+    end
   end
 end
 
@@ -180,41 +188,14 @@ defmodule Mix.Tasks.PhoenixIconify.Cache do
   def run(["fetch" | prefixes]) do
     {:ok, _} = Application.ensure_all_started(:req)
 
-    prefixes_to_fetch =
-      if prefixes == [] do
-        # Get all prefixes from manifest
-        PhoenixIconify.Manifest.read()
-        |> Map.keys()
-        |> Enum.map(fn name ->
-          case String.split(name, ":", parts: 2) do
-            [prefix, _] -> prefix
-            _ -> nil
-          end
-        end)
-        |> Enum.reject(&is_nil/1)
-        |> Enum.uniq()
-      else
-        prefixes
-      end
+    prefixes_to_fetch = prefixes_to_fetch(prefixes)
 
     if prefixes_to_fetch == [] do
       Mix.shell().info("No prefixes to fetch. Run 'mix compile' first to discover icons.")
     else
       Mix.shell().info("Fetching #{length(prefixes_to_fetch)} icon set(s)...")
 
-      Enum.each(prefixes_to_fetch, fn prefix ->
-        if PhoenixIconify.Cache.has_set?(prefix) do
-          Mix.shell().info("  #{prefix}: already cached")
-        else
-          case PhoenixIconify.Cache.fetch_set(prefix) do
-            {:ok, set} ->
-              Mix.shell().info("  #{prefix}: fetched (#{Iconify.Set.count(set)} icons)")
-
-            {:error, reason} ->
-              Mix.shell().error("  #{prefix}: failed (#{inspect(reason)})")
-          end
-        end
-      end)
+      Enum.each(prefixes_to_fetch, &fetch_prefix/1)
     end
   end
 
@@ -230,5 +211,101 @@ defmodule Mix.Tasks.PhoenixIconify.Cache do
       mix phoenix_iconify.cache fetch     Fetch icon sets
       mix phoenix_iconify.cache clear     Clear the cache
     """)
+  end
+
+  defp prefixes_to_fetch([]) do
+    PhoenixIconify.Manifest.read()
+    |> Enum.map(fn {name, _icon} -> prefix_from_icon(name) end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp prefixes_to_fetch(prefixes), do: prefixes
+
+  defp prefix_from_icon(name) do
+    case String.split(name, ":", parts: 2) do
+      [prefix, _] -> prefix
+      _ -> nil
+    end
+  end
+
+  defp fetch_prefix(prefix) do
+    if PhoenixIconify.Cache.has_set?(prefix) do
+      Mix.shell().info("  #{prefix}: already cached")
+    else
+      report_prefix_fetch(prefix, PhoenixIconify.Cache.fetch_set(prefix))
+    end
+  end
+
+  defp report_prefix_fetch(prefix, {:ok, set}) do
+    Mix.shell().info("  #{prefix}: fetched (#{Iconify.Set.count(set)} icons)")
+  end
+
+  defp report_prefix_fetch(prefix, {:error, reason}) do
+    Mix.shell().error("  #{prefix}: failed (#{inspect(reason)})")
+  end
+end
+
+defmodule Mix.Tasks.PhoenixIconify.Prefetch do
+  @shortdoc "Scan and fetch discovered icons"
+  @moduledoc """
+  Scans the project for icon component usage and updates the manifest.
+
+      mix phoenix_iconify.prefetch
+  """
+
+  use Mix.Task
+
+  @impl true
+  def run(_args) do
+    Mix.Task.run("compile.phoenix_iconify")
+  end
+end
+
+defmodule Mix.Tasks.PhoenixIconify.Audit do
+  @shortdoc "Report missing discovered icons"
+  @moduledoc """
+  Reports discovered icons that are not present in the manifest.
+
+      mix phoenix_iconify.audit
+  """
+
+  use Mix.Task
+
+  @impl true
+  def run(_args) do
+    manifest = PhoenixIconify.Manifest.read()
+    missing = Enum.reject(PhoenixIconify.Discovery.icons(), &Map.has_key?(manifest, &1))
+
+    if missing == [] do
+      Mix.shell().info("PhoenixIconify: all discovered icons are present in the manifest.")
+    else
+      Mix.shell().error("PhoenixIconify: #{length(missing)} missing icon(s):")
+      Enum.each(missing, &Mix.shell().error("  #{&1}"))
+    end
+  end
+end
+
+defmodule Mix.Tasks.PhoenixIconify.Clean do
+  @shortdoc "Remove unused manifest icons"
+  @moduledoc """
+  Removes manifest entries that are not currently discovered or configured as extra icons.
+
+      mix phoenix_iconify.clean
+  """
+
+  use Mix.Task
+
+  @impl true
+  def run(_args) do
+    keep = MapSet.new(PhoenixIconify.Discovery.icons())
+    manifest = PhoenixIconify.Manifest.read()
+    cleaned = Map.take(manifest, MapSet.to_list(keep))
+    removed = map_size(manifest) - map_size(cleaned)
+
+    PhoenixIconify.Manifest.write(cleaned)
+    PhoenixIconify.Manifest.clear_cache()
+
+    Mix.shell().info("PhoenixIconify: removed #{removed} unused icon(s).")
   end
 end

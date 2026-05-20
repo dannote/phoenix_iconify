@@ -34,19 +34,12 @@ defmodule PhoenixIconify.Cache do
   def load_set(prefix) do
     path = set_path(prefix)
 
-    if File.exists?(path) do
-      case File.read(path) do
-        {:ok, content} ->
-          case Iconify.Set.parse(content) do
-            {:ok, set} -> {:ok, set}
-            error -> error
-          end
-
-        error ->
-          error
-      end
+    with true <- File.exists?(path),
+         {:ok, content} <- File.read(path) do
+      Iconify.Set.parse(content)
     else
-      {:error, :not_found}
+      false -> {:error, :not_found}
+      error -> error
     end
   end
 
@@ -81,10 +74,7 @@ defmodule PhoenixIconify.Cache do
 
     case Iconify.Fetcher.fetch_set(prefix) do
       {:ok, set} ->
-        # Save the raw JSON for caching
-        # We'll reconstruct it from the set
-        json = encode_set_to_json(set)
-        save_set(prefix, json)
+        save_set(prefix, encode_set_to_json(set))
         {:ok, set}
 
       error ->
@@ -93,23 +83,7 @@ defmodule PhoenixIconify.Cache do
   end
 
   defp encode_set_to_json(set) do
-    icons =
-      set.icons
-      |> Map.new(fn {name, icon} ->
-        data = %{"body" => icon.body}
-        data = if icon.width != set.width, do: Map.put(data, "width", icon.width), else: data
-        data = if icon.height != set.height, do: Map.put(data, "height", icon.height), else: data
-        {name, data}
-      end)
-
-    %{
-      "prefix" => set.prefix,
-      "width" => set.width,
-      "height" => set.height,
-      "icons" => icons,
-      "aliases" => set.aliases |> Map.new(fn {k, v} -> {k, %{"parent" => v}} end)
-    }
-    |> Jason.encode!(pretty: true)
+    Jason.encode!(set, pretty: true)
   end
 
   @doc """
@@ -168,11 +142,9 @@ defmodule PhoenixIconify.Cache do
       sets = list_cached_sets()
 
       total_size =
-        sets
-        |> Enum.map(&set_path/1)
-        |> Enum.map(&File.stat!/1)
-        |> Enum.map(& &1.size)
-        |> Enum.sum()
+        Enum.reduce(sets, 0, fn set, total ->
+          total + (set |> set_path() |> File.stat!()).size
+        end)
 
       %{
         sets: length(sets),
