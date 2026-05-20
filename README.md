@@ -1,19 +1,38 @@
 # PhoenixIconify
 
-Phoenix components for [Iconify](https://iconify.design) icons with compile-time discovery.
+[![Hex.pm](https://img.shields.io/hexpm/v/phoenix_iconify.svg)](https://hex.pm/packages/phoenix_iconify) [![Documentation](https://img.shields.io/badge/documentation-gray)](https://hexdocs.pm/phoenix_iconify)
 
-Access 200,000+ icons from 150+ icon sets. Browse available icons at [icon-sets.iconify.design](https://icon-sets.iconify.design).
+Inline [Iconify](https://iconify.design) SVGs for Phoenix and LiveView. Write a normal Phoenix component, let the compiler discover the icons you use, and ship only those icons with your app.
 
-## Features
+```heex
+<.icon name="lucide:settings" class="size-5" />
+```
 
-- **Compile-time discovery** - Icons are automatically detected from your templates
-- **On-demand fetching** - Only icons you use are downloaded
-- **Zero runtime overhead** - Icons are embedded at compile time
-- **LiveView optimized** - Minimal diffs, only attributes change
+PhoenixIconify gives Phoenix apps access to 200,000+ icons from 150+ icon sets without a client-side icon runtime. Browse icons at [icon-sets.iconify.design](https://icon-sets.iconify.design).
+
+## Why PhoenixIconify
+
+Most Iconify integrations load icons in JavaScript. PhoenixIconify keeps icons on the server:
+
+- Icons are discovered from HEEx at compile time
+- Only icons you use are fetched and stored
+- Rendering is plain inline SVG
+- No browser-side icon loader
+- Works with LiveView diffs and `phx-*` attributes
+- Dynamic icons can be pre-registered in config
+
+It pairs naturally with Tailwind and Volt-powered Phoenix projects:
+
+```heex
+<button class="inline-flex items-center gap-2">
+  <.icon name="lucide:settings" class="size-4" />
+  Settings
+</button>
+```
 
 ## Installation
 
-Add `phoenix_iconify` to your list of dependencies in `mix.exs`:
+Add the dependency:
 
 ```elixir
 def deps do
@@ -23,74 +42,90 @@ def deps do
 end
 ```
 
-Add the compiler to your project:
+Add the compiler:
 
 ```elixir
 def project do
   [
-    compilers: Mix.compilers() ++ [:phoenix_iconify],
-    # ...
+    compilers: Mix.compilers() ++ [:phoenix_iconify]
   ]
 end
 ```
 
-## Usage
-
-Import the component in your web module (`lib/my_app_web.ex`):
+Import the component in your web module:
 
 ```elixir
+# lib/my_app_web.ex
 defp html_helpers do
   quote do
     import PhoenixIconify, only: [icon: 1]
-    # ...
   end
 end
 ```
 
-Use icons in your templates:
-
-```heex
-<.icon name="lucide:settings" class="size-5" />
-<.icon name="hero-user" class="size-6 text-zinc-500" />
-<.icon name="mdi:account" label="Account" />
-<.icon name="lucide:x" phx-click="close" />
-```
-
-The component renders inline SVG and forwards global attributes, including `phx-*`, `data-*`, and `aria-*` attributes.
-
-## How It Works
-
-1. You use `<.icon name="heroicons:user" />` in your templates
-2. During compilation, the compiler scans for icon component calls
-3. It extracts literal icon names from the `name` attribute
-4. Missing icons are fetched from the Iconify API
-5. Icons are cached in `priv/iconify/manifest.etf`
-6. At runtime, icons are loaded from the manifest
-
-## Component API
-
-Decorative icons are hidden from assistive technology by default:
+Now use icons in HEEx:
 
 ```heex
 <.icon name="lucide:settings" class="size-5" />
 ```
 
-Use `label` or `title` for meaningful icons:
+## Usage
+
+Use Iconify's standard `prefix:name` format:
+
+```heex
+<.icon name="lucide:home" class="size-5" />
+<.icon name="mdi:account" class="size-6 text-blue-600" />
+<.icon name="heroicons:check" class="size-4" />
+```
+
+Phoenix-style Heroicons names are supported too:
+
+```heex
+<.icon name="hero-user" class="size-6" />
+<.icon name="hero-sun-mini" class="size-5" />
+<.icon name="hero-sun-micro" class="size-4" />
+```
+
+Global attributes are forwarded to the SVG, including `phx-*`, `data-*`, and `aria-*`:
+
+```heex
+<.icon name="lucide:x" class="size-4" phx-click="close" data-testid="close" />
+```
+
+## Accessibility
+
+Icons are decorative by default and render with `aria-hidden="true"`:
+
+```heex
+<.icon name="lucide:settings" class="size-5" />
+```
+
+For meaningful icons, provide `label` or `title`:
 
 ```heex
 <.icon name="lucide:settings" label="Settings" />
 <.icon name="lucide:settings" title="Settings" />
 ```
 
-Set dimensions with Tailwind classes, `size`, or explicit `width`/`height`:
+## Sizing
+
+Use Tailwind's `size-*` utilities when possible:
 
 ```heex
 <.icon name="lucide:settings" class="size-5" />
+```
+
+Or set SVG dimensions directly:
+
+```heex
 <.icon name="lucide:settings" size="20" />
 <.icon name="lucide:settings" width="1em" height="1em" />
 ```
 
-Iconify transformations are supported for aliases and at render time:
+## Transformations
+
+Iconify aliases can include transformations, and you can transform at render time:
 
 ```heex
 <.icon name="lucide:arrow-right" rotate={1} />
@@ -99,84 +134,86 @@ Iconify transformations are supported for aliases and at render time:
 <.icon name="lucide:arrow-right" v_flip />
 ```
 
-## Icon Names
+## How it works
 
-Icons use the format `prefix:icon-name`:
+1. You write `<.icon name="lucide:settings" />`
+2. The `:phoenix_iconify` compiler scans HEEx and `~H` sigils
+3. Literal icon names are collected
+4. Missing icons are fetched through Iconify
+5. A JSON manifest is written to `priv/iconify/manifest.json`
+6. At runtime, the component reads icons from the manifest and renders inline SVG
 
-- `heroicons:user` - Heroicons user icon
-- `heroicons:user-solid` - Heroicons solid user
-- `lucide:home` - Lucide home icon
-- `mdi:account` - Material Design Icons account
+There is no client-side icon runtime and no JavaScript bundle impact.
 
-Browse all icons at [icon-sets.iconify.design](https://icon-sets.iconify.design).
+## Dynamic icons
 
-## Configuration
+Compile-time discovery only works for literal names. If an icon name comes from assigns, a database, or user configuration, register the possible values:
 
 ```elixir
 # config/config.exs
 config :phoenix_iconify,
-  # Pre-register icons for dynamic usage (e.g., icons from database)
-  extra_icons: ["heroicons:check", "heroicons:x-mark"],
-  
-  # Fallback icon when requested icon is not found
-  fallback: "heroicons:question-mark-circle",
-  
-  # Log warnings when icons are not found (default: true)
-  warn_on_missing: true
-```
-
-## Caching
-
-Icon sets are cached locally in `priv/iconify/sets/` to avoid repeated downloads.
-
-```bash
-# Pre-fetch icon sets for faster subsequent compiles
-mix phoenix_iconify.cache fetch
-
-# List cached sets
-mix phoenix_iconify.cache list
-
-# Clear cache
-mix phoenix_iconify.cache clear
-
-# Show statistics
-mix phoenix_iconify.stats
-```
-
-## Dynamic Icons
-
-For icons that can't be discovered at compile time (e.g., from database):
-
-```elixir
-config :phoenix_iconify,
   extra_icons: [
-    "heroicons:check",
-    "heroicons:x-mark",
-    "heroicons:exclamation-triangle"
+    "lucide:check",
+    "lucide:x",
+    "lucide:alert-triangle"
   ]
 ```
 
-## Mix Tasks
+Then dynamic usage works at runtime:
 
-```bash
-mix phoenix_iconify           # Show help
-mix phoenix_iconify.stats     # Show statistics
-mix phoenix_iconify.list      # List icons in manifest
-mix phoenix_iconify.cache     # Cache management
-mix phoenix_iconify.prefetch  # Scan and fetch discovered icons
-mix phoenix_iconify.audit     # Report missing discovered icons
-mix phoenix_iconify.clean     # Remove unused manifest icons
+```heex
+<.icon name={@status_icon} class="size-4" />
 ```
 
-## Volt Projects
+## Configuration
 
-For projects created with Volt, use `phoenix_iconify` when you want server-rendered, compile-time embedded SVGs:
+```elixir
+config :phoenix_iconify,
+  extra_icons: ["lucide:check", "lucide:x"],
+  fallback: "lucide:circle-help",
+  warn_on_missing: true
+```
+
+Options:
+
+- `:extra_icons` - icons to include even when they are not found by static discovery
+- `:fallback` - icon to render when a requested icon is missing
+- `:warn_on_missing` - log missing icon warnings, enabled by default
+
+## Cache and manifest
+
+PhoenixIconify stores:
+
+- `priv/iconify/manifest.json` - icons used by your app
+- `priv/iconify/sets/*.json` - cached icon sets
+
+Useful tasks:
+
+```bash
+mix phoenix_iconify.prefetch  # scan and fetch discovered icons
+mix phoenix_iconify.audit     # report discovered icons missing from the manifest
+mix phoenix_iconify.clean     # remove manifest icons no longer used
+mix phoenix_iconify.list      # list manifest icons
+mix phoenix_iconify.stats     # show manifest and cache stats
+```
+
+Cache tasks:
+
+```bash
+mix phoenix_iconify.cache fetch
+mix phoenix_iconify.cache list
+mix phoenix_iconify.cache clear
+```
+
+## Volt projects
+
+For projects created with [Volt](https://hex.pm/packages/volt), PhoenixIconify is the server-rendered option:
 
 ```heex
 <.icon name="lucide:settings" class="size-5" />
 ```
 
-This does not use Volt's JavaScript pipeline. If you want client-side Iconify components instead, use the official npm packages (`iconify-icon`, `@iconify/react`, `@iconify/vue`, etc.) through Volt's normal package handling.
+It does not use Volt's JavaScript pipeline. If you want client-side icon components instead, use the official npm packages (`iconify-icon`, `@iconify/react`, `@iconify/vue`, etc.) through Volt's normal package handling.
 
 ## License
 
