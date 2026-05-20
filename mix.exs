@@ -2,7 +2,7 @@ defmodule PhoenixIconify.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @source_url "https://github.com/dannote/phoenix_iconify"
+  @source_url "https://github.com/elixir-volt/phoenix_iconify"
 
   def project do
     [
