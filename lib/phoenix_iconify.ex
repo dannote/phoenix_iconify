@@ -26,6 +26,9 @@ defmodule PhoenixIconify do
   attr(:size, :any, default: nil, doc: "Width and height to apply together")
   attr(:width, :any, default: nil, doc: "SVG width attribute")
   attr(:height, :any, default: nil, doc: "SVG height attribute")
+  attr(:color, :string, default: nil, doc: "CSS color for currentColor icons")
+  attr(:inline, :boolean, default: false, doc: "Align icon with text baseline")
+  attr(:mode, :string, default: "svg", doc: "Render mode: svg, mask, or bg")
   attr(:rotate, :integer, default: 0, doc: "Additional 90-degree rotations")
   attr(:flip, :string, default: nil, doc: "Flip direction: horizontal, vertical, or both")
   attr(:h_flip, :boolean, default: false, doc: "Apply horizontal flip")
@@ -35,15 +38,17 @@ defmodule PhoenixIconify do
   def icon(assigns) do
     icon_data = get_icon(assigns.name)
     render_data = render_data(icon_data, assigns)
-    svg_attrs = svg_attrs(assigns, render_data)
 
     assigns =
       assigns
       |> assign(:body, render_data.body)
-      |> assign(:svg_attrs, svg_attrs)
+      |> assign(:svg_attrs, svg_attrs(assigns, render_data))
+      |> assign(:span_attrs, span_attrs(assigns, render_data))
+      |> assign(:svg_mode?, svg_mode?(assigns.mode))
 
     ~H"""
-    <svg {@svg_attrs}><%= if @title do %><title><%= @title %></title><% end %><%= HTML.raw(@body) %></svg>
+    <svg :if={@svg_mode?} {@svg_attrs}><%= if @title do %><title><%= @title %></title><% end %><%= HTML.raw(@body) %></svg>
+    <span :if={!@svg_mode?} {@span_attrs}></span>
     """
   end
 
@@ -105,10 +110,13 @@ defmodule PhoenixIconify do
   defp render_data(%Iconify.Icon{} = icon, assigns) do
     {h_flip, v_flip} = flip_options(assigns.flip, assigns.h_flip, assigns.v_flip)
 
-    {body, viewbox} =
-      Iconify.SVG.build_body(icon, rotate: assigns.rotate, h_flip: h_flip, v_flip: v_flip)
-
-    %{body: body, viewbox: viewbox}
+    Iconify.SVG.build_data(icon,
+      width: assigns.width || assigns.size,
+      height: assigns.height || assigns.size,
+      rotate: assigns.rotate,
+      h_flip: h_flip,
+      v_flip: v_flip
+    )
   end
 
   defp flip_options(flip, h_flip, v_flip) do
@@ -125,16 +133,38 @@ defmodule PhoenixIconify do
       xmlns: "http://www.w3.org/2000/svg",
       viewBox: render_data.viewbox,
       fill: "currentColor",
-      class: assigns.class
+      class: assigns.class,
+      width: render_data.width,
+      height: render_data.height,
+      style: style(assigns.color, assigns.inline)
     }
 
     base
-    |> maybe_put(:width, assigns.width || assigns.size)
-    |> maybe_put(:height, assigns.height || assigns.size)
+    |> Map.merge(accessibility_attrs(assigns))
+    |> Map.merge(assigns.rest)
+    |> Enum.reject(fn {_key, value} -> is_nil(value) or unset_keyword?(value) end)
+    |> Map.new()
+  end
+
+  defp span_attrs(%{mode: "svg"}, _render_data), do: %{}
+
+  defp span_attrs(assigns, render_data) do
+    style =
+      assigns.mode
+      |> String.to_existing_atom()
+      |> span_style(render_data)
+      |> style(assigns.color, assigns.inline)
+
+    %{
+      class: assigns.class,
+      style: style
+    }
     |> Map.merge(accessibility_attrs(assigns))
     |> Map.merge(assigns.rest)
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()
+  rescue
+    ArgumentError -> %{}
   end
 
   defp accessibility_attrs(%{label: label, title: title})
@@ -147,8 +177,77 @@ defmodule PhoenixIconify do
 
   defp accessibility_attrs(_assigns), do: %{"aria-hidden": "true"}
 
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+  defp style(color, inline) do
+    nil
+    |> maybe_style("color", color)
+    |> maybe_style("vertical-align", if(inline, do: "-0.125em"))
+  end
+
+  defp style(style, color, inline) do
+    style
+    |> maybe_style("color", color)
+    |> maybe_style("vertical-align", if(inline, do: "-0.125em"))
+  end
+
+  defp span_style(:mask, render_data) do
+    svg_url = svg_url(render_data)
+
+    [
+      "display:inline-block",
+      "width:#{format_size(render_data.width)}",
+      "height:#{format_size(render_data.height)}",
+      "background-color:currentColor",
+      "mask:var(--svg) no-repeat 50% 50% / 100% 100%",
+      "-webkit-mask:var(--svg) no-repeat 50% 50% / 100% 100%",
+      "--svg:url(\"#{svg_url}\")"
+    ]
+    |> Enum.join(";")
+  end
+
+  defp span_style(:bg, render_data) do
+    svg_url = svg_url(render_data)
+
+    [
+      "display:inline-block",
+      "width:#{format_size(render_data.width)}",
+      "height:#{format_size(render_data.height)}",
+      "background:transparent var(--svg) no-repeat 50% 50% / 100% 100%",
+      "--svg:url(\"#{svg_url}\")"
+    ]
+    |> Enum.join(";")
+  end
+
+  defp maybe_style(style, _key, nil), do: style
+  defp maybe_style(nil, key, value), do: "#{key}:#{value}"
+  defp maybe_style(style, key, value), do: style <> ";#{key}:#{value}"
+
+  defp svg_url(render_data) do
+    [
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"#{render_data.viewbox}\" width=\"#{render_data.width}\" height=\"#{render_data.height}\">",
+      render_data.body,
+      "</svg>"
+    ]
+    |> IO.iodata_to_binary()
+    |> svg_to_url()
+  end
+
+  defp svg_to_url(svg) do
+    svg
+    |> String.replace("%", "%25")
+    |> String.replace("#", "%23")
+    |> String.replace("<", "%3C")
+    |> String.replace(">", "%3E")
+    |> String.replace("\"", "'")
+    |> String.replace("&", "%26")
+  end
+
+  defp format_size(value) when is_number(value), do: to_string(value) <> "px"
+  defp format_size(value), do: value
+
+  defp svg_mode?(mode), do: to_string(mode) == "svg"
+
+  defp unset_keyword?(value) when value in ["unset", "undefined", "none"], do: true
+  defp unset_keyword?(_), do: false
 
   defp handle_missing_icon(normalized, original) do
     maybe_warn(missing_icon_message(normalized, original))

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.0
+
+- Replace SVG IDs during rendering to avoid duplicate ID collisions
+- Add Iconify-style dimension calculation and `1em` defaults
+- Add `color`, `inline`, and `mask`/`bg` render modes
+
 ## v0.2.0
 
 - Store discovered icons in a readable JSON manifest

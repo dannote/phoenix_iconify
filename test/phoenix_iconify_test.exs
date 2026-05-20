@@ -17,6 +17,13 @@ defmodule PhoenixIconifyTest do
         height: 24
       })
 
+      Manifest.add_icon("lucide:gradient", %Iconify.Icon{
+        name: "lucide:gradient",
+        body: ~s|<defs><linearGradient id="a"></linearGradient></defs><path fill="url(#a)"/>|,
+        width: 32,
+        height: 16
+      })
+
       on_exit(fn -> Manifest.clear_cache() end)
     end
 
@@ -34,6 +41,8 @@ defmodule PhoenixIconifyTest do
       assert html =~ ~s(data-testid="settings")
       assert html =~ ~s(<path d="M10 10"/>)
       assert html =~ ~s(aria-hidden="true")
+      assert html =~ ~s(width="1em")
+      assert html =~ ~s(height="1em")
     end
 
     test "uses accessible label when provided" do
@@ -60,6 +69,34 @@ defmodule PhoenixIconifyTest do
       assert html =~ ~s(<title>Settings</title>)
       assert html =~ ~s(width="20")
       assert html =~ ~s(height="20")
+    end
+
+    test "supports color, inline alignment, aspect-ratio sizing, and id replacement" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <PhoenixIconify.icon name="lucide:gradient" height="1em" color="red" inline />
+        """)
+
+      assert html =~ ~s(width="2em")
+      assert html =~ ~s(height="1em")
+      assert html =~ ~s(style="color:red;vertical-align:-0.125em")
+      assert html =~ ~s(id="iconify-)
+      refute html =~ ~s(id="a")
+    end
+
+    test "supports CSS mask render mode" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <PhoenixIconify.icon name="lucide:settings" mode="mask" class="size-5" />
+        """)
+
+      assert html =~ ~s(<span)
+      assert html =~ ~s(class="size-5")
+      assert String.contains?(html, "mask" <> <<58, 118, 97, 114, 40, 45, 45, 115, 118, 103, 41>>)
     end
   end
 

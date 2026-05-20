@@ -17,6 +17,7 @@ Most Iconify integrations load icons in JavaScript. PhoenixIconify keeps icons o
 - Icons are discovered from HEEx at compile time
 - Only icons you use are fetched and stored
 - Rendering is plain inline SVG
+- SVG IDs are rewritten to avoid duplicate gradient/mask collisions
 - No browser-side icon loader
 - Works with LiveView diffs and `phx-*` attributes
 - Dynamic icons can be pre-registered in config
@@ -93,6 +94,14 @@ Global attributes are forwarded to the SVG, including `phx-*`, `data-*`, and `ar
 <.icon name="lucide:x" class="size-4" phx-click="close" data-testid="close" />
 ```
 
+Use `color` for currentColor icon sets and `inline` when an icon should align with text:
+
+```heex
+<span>
+  Saved <.icon name="lucide:check" color="green" inline />
+</span>
+```
+
 ## Accessibility
 
 Icons are decorative by default and render with `aria-hidden="true"`:
@@ -116,14 +125,15 @@ Use Tailwind's `size-*` utilities when possible:
 <.icon name="lucide:settings" class="size-5" />
 ```
 
-Or set SVG dimensions directly:
+PhoenixIconify follows Iconify's dimension behavior. Icons default to `1em` high and preserve their aspect ratio. Set one dimension and the other is calculated from the viewBox:
 
 ```heex
 <.icon name="lucide:settings" size="20" />
-<.icon name="lucide:settings" width="1em" height="1em" />
+<.icon name="lucide:settings" height="1em" />
+<.icon name="lucide:settings" width="unset" />
 ```
 
-## Transformations
+## Transformations and render modes
 
 Iconify aliases can include transformations, and you can transform at render time:
 
@@ -133,6 +143,15 @@ Iconify aliases can include transformations, and you can transform at render tim
 <.icon name="lucide:arrow-right" h_flip />
 <.icon name="lucide:arrow-right" v_flip />
 ```
+
+SVG mode is the default. CSS mask/background modes are available for Iconify-style CSS rendering:
+
+```heex
+<.icon name="lucide:settings" mode="mask" class="size-5" />
+<.icon name="logos:elixir" mode="bg" class="size-5" />
+```
+
+SVG IDs are replaced automatically, so icons with gradients, masks, clip paths, or animation references can be rendered multiple times on the same page.
 
 ## How it works
 

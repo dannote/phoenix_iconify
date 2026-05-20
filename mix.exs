@@ -1,7 +1,7 @@
 defmodule PhoenixIconify.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.0"
   @source_url "https://github.com/elixir-volt/phoenix_iconify"
 
   def project do
@@ -42,7 +42,7 @@ defmodule PhoenixIconify.MixProject do
     if path = System.get_env("ICONIFY_PATH") do
       [path: path]
     else
-      "~> 0.2.0"
+      "~> 0.3.0"
     end
   end
 
