@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.1
+
+- Fix manifest decoding for Mix tasks when persisted icon field atoms are not loaded yet
+
 ## v0.3.0
 
 - Replace SVG IDs during rendering to avoid duplicate ID collisions
