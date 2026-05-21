@@ -108,6 +108,7 @@ defmodule PhoenixIconify.Manifest do
   end
 
   defp decode!(json) do
+    _icon_defaults = struct!(Iconify.Icon, name: "", body: "")
     %{version: @version, icons: icons} = Jason.decode!(json, keys: :atoms!)
 
     unless is_list(icons) do

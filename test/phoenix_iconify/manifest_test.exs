@@ -32,6 +32,24 @@ defmodule PhoenixIconify.ManifestTest do
       end
     end
 
+    test "loads icon atoms before decoding persisted icon fields" do
+      path =
+        Path.join(System.tmp_dir!(), "test_manifest_strings_#{:rand.uniform(1_000_000)}.json")
+
+      try do
+        File.write!(
+          path,
+          ~s({"version":1,"icons":[{"name":"lucide:sun","body":"<path/>","width":24,"height":24}]})
+        )
+
+        assert %{"lucide:sun" => icon} = Manifest.read(path)
+        assert icon.width == 24
+        assert icon.height == 24
+      after
+        File.rm(path)
+      end
+    end
+
     test "returns empty map for missing file" do
       assert Manifest.read("/nonexistent/path.json") == %{}
     end
