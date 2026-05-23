@@ -38,7 +38,7 @@ Add the dependency:
 ```elixir
 def deps do
   [
-    {:phoenix_iconify, "~> 0.1.0"}
+    {:phoenix_iconify, "~> 0.3.2"}
   ]
 end
 ```

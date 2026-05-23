@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.2
+
+- Improve compile-time icon discovery for wrapper component `icon` attributes and same-line recoverable HEEx inside EEx blocks
+- Discover literal icon names returned by icon helper functions
+- Include `priv/**/*.heex` templates in scanner source paths
+
 ## v0.3.1
 
 - Fix manifest decoding for Mix tasks when persisted icon field atoms are not loaded yet
