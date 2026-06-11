@@ -234,6 +234,17 @@ For projects created with [Volt](https://hex.pm/packages/volt), PhoenixIconify i
 
 It does not use Volt's JavaScript pipeline. If you want client-side icon components instead, use the official npm packages (`iconify-icon`, `@iconify/react`, `@iconify/vue`, etc.) through Volt's normal package handling.
 
+## Part of Elixir Volt
+
+phoenix_iconify ships compile-time discovered, server-rendered Iconify SVGs for Phoenix — 200,000+ icons, zero client runtime.
+
+It is part of a frontend stack that runs inside the BEAM — builds, JS
+runtimes, icons, and Vue-to-LiveView compilation as supervised parts of the
+application instead of external toolchain processes. See the
+[Elixir Volt](https://github.com/elixir-volt) organization for the rest, and
+[Building Blocks for the Future Web](https://github.com/elixir-vibe/building-blocks)
+for the thesis, architecture, and roadmap that tie them together.
+
 ## License
 
 MIT
