@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.3
+
+- Fix HEEx icon discovery with Phoenix LiveView 1.2 tag engine parser
+- Keep scanner compatibility with LiveView 1.1 and older tokenizer APIs
+
 ## v0.3.2
 
 - Improve compile-time icon discovery for wrapper component `icon` attributes and same-line recoverable HEEx inside EEx blocks

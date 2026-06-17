@@ -3,7 +3,15 @@ defmodule PhoenixIconify.Scanner do
   Scans source files for literal icon component usage.
   """
 
-  alias Phoenix.LiveView.Tokenizer
+  @compile {:no_warn_undefined, {Phoenix.LiveView.Tokenizer, :init, 4}}
+  @compile {:no_warn_undefined, {Phoenix.LiveView.Tokenizer, :tokenize, 5}}
+  @compile {:no_warn_undefined, {Phoenix.LiveView.TagEngine.Parser, :tokenize, 2}}
+  @compile {:no_warn_undefined, {Phoenix.LiveView.TagEngine.Tokenizer, :init, 4}}
+  @compile {:no_warn_undefined, {Phoenix.LiveView.TagEngine.Tokenizer, :tokenize, 5}}
+
+  alias Phoenix.LiveView.HTMLEngine
+  alias Phoenix.LiveView.TagEngine
+  alias Phoenix.LiveView.Tokenizer, as: LegacyTokenizer
 
   @doc """
   Scans all relevant source files and extracts icon names.
@@ -79,7 +87,12 @@ defmodule PhoenixIconify.Scanner do
   defp tokenize_heex(content, path) do
     do_tokenize_heex(content, path)
   rescue
-    Phoenix.LiveView.Tokenizer.ParseError -> tokenize_heex_lines(content, path)
+    error ->
+      if parse_error?(error) do
+        tokenize_heex_lines(content, path)
+      else
+        reraise(error, __STACKTRACE__)
+      end
   end
 
   defp tokenize_heex_lines(content, path) do
@@ -90,18 +103,83 @@ defmodule PhoenixIconify.Scanner do
       try do
         do_tokenize_heex(line, path, line_number)
       rescue
-        Phoenix.LiveView.Tokenizer.ParseError -> []
+        error ->
+          if parse_error?(error) do
+            []
+          else
+            reraise(error, __STACKTRACE__)
+          end
       end
     end)
   end
 
   defp do_tokenize_heex(content, path, line \\ 1) do
-    state = Tokenizer.init(0, path, content, Phoenix.LiveView.HTMLEngine)
+    case heex_tokenizer() do
+      :parser ->
+        TagEngine.Parser.tokenize(content,
+          file: path,
+          line: line,
+          column: 1,
+          tag_handler: HTMLEngine,
+          trim_eex: false,
+          strip_eex_comments: true
+        )
 
-    {tokens, _cont} =
-      Tokenizer.tokenize(content, [line: line, column: 1], [], {:text, :enabled}, state)
+      :tag_engine_tokenizer ->
+        state = TagEngine.Tokenizer.init(0, path, content, HTMLEngine)
 
-    tokens
+        {tokens, _cont} =
+          TagEngine.Tokenizer.tokenize(
+            content,
+            [line: line, column: 1],
+            [],
+            {:text, :enabled},
+            state
+          )
+
+        tokens
+
+      :legacy_tokenizer ->
+        state = LegacyTokenizer.init(0, path, content, HTMLEngine)
+
+        {tokens, _cont} =
+          LegacyTokenizer.tokenize(
+            content,
+            [line: line, column: 1],
+            [],
+            {:text, :enabled},
+            state
+          )
+
+        tokens
+    end
+  end
+
+  defp heex_tokenizer do
+    cond do
+      Code.ensure_loaded?(TagEngine.Parser) -> :parser
+      Code.ensure_loaded?(TagEngine.Tokenizer) -> :tag_engine_tokenizer
+      Code.ensure_loaded?(LegacyTokenizer) -> :legacy_tokenizer
+    end
+  end
+
+  defp parse_error?(error) do
+    error
+    |> Map.get(:__struct__)
+    |> case do
+      module when is_atom(module) ->
+        module
+        |> Atom.to_string()
+        |> then(
+          &(&1 in [
+              "Elixir.Phoenix.LiveView.Tokenizer.ParseError",
+              "Elixir.Phoenix.LiveView.TagEngine.Tokenizer.ParseError"
+            ])
+        )
+
+      _ ->
+        false
+    end
   end
 
   defp icons_from_tokens(tokens) do
