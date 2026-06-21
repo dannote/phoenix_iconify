@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.4
+
+- Avoid `Mix.Project.config/0` at runtime when resolving the icon manifest path in OTP releases by using configured or discovered application priv directories
+
 ## v0.3.3
 
 - Fix HEEx icon discovery with Phoenix LiveView 1.2 tag engine parser

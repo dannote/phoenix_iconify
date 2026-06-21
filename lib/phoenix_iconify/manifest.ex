@@ -12,19 +12,13 @@ defmodule PhoenixIconify.Manifest do
   Returns the path to the manifest file for the given application.
   """
   def manifest_path(app \\ nil) do
-    app = app || Application.get_env(:phoenix_iconify, :otp_app) || Mix.Project.config()[:app]
+    app = app || Application.get_env(:phoenix_iconify, :otp_app) || mix_project_app()
 
-    priv_dir =
-      if app do
-        case :code.priv_dir(app) do
-          {:error, :bad_name} -> "priv"
-          path -> List.to_string(path)
-        end
-      else
-        "priv"
-      end
-
-    Path.join([priv_dir, "iconify", @manifest_filename])
+    if app do
+      Path.join([priv_dir(app), "iconify", @manifest_filename])
+    else
+      discover_manifest_path() || Path.join(["priv", "iconify", @manifest_filename])
+    end
   end
 
   @doc """
@@ -105,6 +99,28 @@ defmodule PhoenixIconify.Manifest do
   """
   def count do
     get_icons() |> map_size()
+  end
+
+  defp priv_dir(app) do
+    case :code.priv_dir(app) do
+      {:error, :bad_name} -> "priv"
+      path -> List.to_string(path)
+    end
+  end
+
+  defp discover_manifest_path do
+    :application.loaded_applications()
+    |> Enum.map(fn {app, _description, _version} -> app end)
+    |> Enum.sort()
+    |> Enum.reject(&(&1 in [:phoenix_iconify, :iconify]))
+    |> Enum.map(&Path.join([priv_dir(&1), "iconify", @manifest_filename]))
+    |> Enum.find(&File.regular?/1)
+  end
+
+  defp mix_project_app do
+    if Code.ensure_loaded?(Mix.Project) and function_exported?(Mix.Project, :config, 0) do
+      Mix.Project.config()[:app]
+    end
   end
 
   defp decode!(json) do

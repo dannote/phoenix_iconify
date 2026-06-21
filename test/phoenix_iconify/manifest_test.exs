@@ -3,6 +3,28 @@ defmodule PhoenixIconify.ManifestTest do
 
   alias PhoenixIconify.Manifest
 
+  describe "manifest_path/1" do
+    test "uses configured otp_app before Mix project fallback" do
+      previous = Application.get_env(:phoenix_iconify, :otp_app)
+      Application.put_env(:phoenix_iconify, :otp_app, :phoenix_iconify)
+
+      try do
+        assert Manifest.manifest_path() ==
+                 Path.join([
+                   :code.priv_dir(:phoenix_iconify) |> List.to_string(),
+                   "iconify",
+                   "manifest.json"
+                 ])
+      after
+        if previous do
+          Application.put_env(:phoenix_iconify, :otp_app, previous)
+        else
+          Application.delete_env(:phoenix_iconify, :otp_app)
+        end
+      end
+    end
+  end
+
   describe "read/1 and write/2" do
     test "round trips JSON manifests" do
       path = Path.join(System.tmp_dir!(), "test_manifest_#{:rand.uniform(1_000_000)}.json")
