@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.5
+
+- Add configurable scanner source globs
+- Include Astral `.astral` templates and Markdown content in default icon discovery globs
+
 ## v0.3.4
 
 - Avoid `Mix.Project.config/0` at runtime when resolving the icon manifest path in OTP releases by using configured or discovered application priv directories

@@ -1,7 +1,32 @@
 defmodule PhoenixIconify.ScannerTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
+
+  @moduletag :tmp_dir
 
   alias PhoenixIconify.Scanner
+
+  test "scans configured Astral source globs", %{tmp_dir: tmp} do
+    File.mkdir_p!(Path.join(tmp, "components"))
+
+    File.write!(
+      Path.join(tmp, "components/link.astral"),
+      ~s(<.icon name="ri:external-link-fill" />)
+    )
+
+    previous = Application.get_env(:phoenix_iconify, :source_globs)
+    Application.put_env(:phoenix_iconify, :source_globs, ["components/**/*.astral"])
+
+    try do
+      icons = File.cd!(tmp, &Scanner.scan/0)
+      assert icons == ["ri:external-link-fill"]
+    after
+      if previous do
+        Application.put_env(:phoenix_iconify, :source_globs, previous)
+      else
+        Application.delete_env(:phoenix_iconify, :source_globs)
+      end
+    end
+  end
 
   describe "scan_heex_content/1" do
     test "extracts icon names from heex content" do

@@ -13,6 +13,16 @@ defmodule PhoenixIconify.Scanner do
   alias Phoenix.LiveView.TagEngine
   alias Phoenix.LiveView.Tokenizer, as: LegacyTokenizer
 
+  @default_source_globs [
+    "lib/**/*.ex",
+    "lib/**/*.heex",
+    "priv/**/*.heex",
+    "pages/**/*.astral",
+    "components/**/*.astral",
+    "layouts/**/*.astral",
+    "content/**/*.md"
+  ]
+
   @doc """
   Scans all relevant source files and extracts icon names.
   """
@@ -34,7 +44,9 @@ defmodule PhoenixIconify.Scanner do
   end
 
   defp source_paths do
-    ["lib/**/*.ex", "lib/**/*.heex", "priv/**/*.heex"]
+    :phoenix_iconify
+    |> Application.get_env(:source_globs, @default_source_globs)
+    |> List.wrap()
     |> Enum.flat_map(&Path.wildcard/1)
   end
 
@@ -42,8 +54,8 @@ defmodule PhoenixIconify.Scanner do
     content = File.read!(path)
 
     cond do
-      String.ends_with?(path, ".heex") -> scan_heex(content, path)
-      String.ends_with?(path, ".ex") -> scan_ex(content)
+      Path.extname(path) in [".heex", ".astral"] -> scan_heex(content, path)
+      Path.extname(path) == ".ex" -> scan_ex(content)
       true -> []
     end
   rescue

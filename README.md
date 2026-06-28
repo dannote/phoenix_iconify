@@ -196,6 +196,7 @@ config :phoenix_iconify,
 Options:
 
 - `:extra_icons` - icons to include even when they are not found by static discovery
+- `:source_globs` - source globs to scan for literal icon usage. Defaults include Phoenix HEEx files and Astral `pages/**/*.astral`, `components/**/*.astral`, `layouts/**/*.astral`, and `content/**/*.md`.
 - `:fallback` - icon to render when a requested icon is missing
 - `:warn_on_missing` - log missing icon warnings, enabled by default
 
